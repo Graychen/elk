@@ -1,0 +1,24 @@
+image: zacksleo/docker-composer:alpine
+
+before_script:
+    - 'which ssh-agent || ( apk update && apk add openssh-client)'
+    - apk add rsync
+    - eval $(ssh-agent -s)
+    - echo "$SSH_PRIVATE_KEY" > ~/deploy.key
+    - chmod 0600 ~/deploy.key
+    - ssh-add ~/deploy.key
+    - mkdir -p ~/.ssh
+    - '[[ -f /.dockerenv ]] && echo -e "Host *\n\tStrictHostKeyChecking no\n\n" > ~/.ssh/config'
+
+stages:
+    - deploy
+
+deploy:
+    stage: deploy
+    variables:
+        DEPLOY_SERVER: $DEPLOY_SERVER
+    script:
+        - rm -rf .git/
+        - rsync -rtvhze ssh . root@$DEPLOY_SERVER:/data/$CI_PROJECT_NAME --stats
+        - ssh root@$DEPLOY_SERVER "cd /data/$CI_PROJECT_NAME && docker-compose stop && docker-compose rm -f && docker-compose up -d --build"
+
